@@ -76,6 +76,10 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
   ctrl uponEvent {
     case _: Start => {
       /* WRITE YOUR CODE HERE */
+      startTimer(period);//Start timer with period
+
+      //variables alive and suspected are initialized above, but you can also initialize them here
+
     }
   }
 
@@ -83,6 +87,7 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
     case CheckTimeout(_) => {
       if (!alive.intersect(suspected).isEmpty) {
         /* WRITE YOUR CODE HERE */
+        period = period + delta;//if there are no suspected processes, increase the period
       }
 
       seqnum = seqnum + 1;
@@ -91,6 +96,8 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
         if (!alive.contains(p) && !suspected.contains(p)) {
 
          /* WRITE YOUR CODE HERE */
+         suspected = suspected + p;
+         trigger(Suspect(p) -> epfd);
 
         } else if (alive.contains(p) && suspected.contains(p)) {
           suspected = suspected - p;
@@ -107,6 +114,7 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
   pLink uponEvent {
     case PL_Deliver(src, HeartbeatRequest(seq)) => {
          /* WRITE YOUR CODE HERE */
+         trigger(PL_Send(src, HeartbeatReply(seq)) -> pLink);
 
     }
     case PL_Deliver(src, HeartbeatReply(seq)) => {
