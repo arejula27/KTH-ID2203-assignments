@@ -121,7 +121,7 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
     case PL_Deliver(src, HeartbeatReply(seq)) => {
         
          /* WRITE YOUR CODE HERE */
-         if (seq > seqnum) {
+         if (seq > seqnum || suspected.contains(src)) {
            alive = alive + src
          }
       
