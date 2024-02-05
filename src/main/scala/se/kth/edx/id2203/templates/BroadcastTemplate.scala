@@ -218,6 +218,8 @@ class WaitingCRB(init: Init[WaitingCRB]) extends ComponentDefinition {
         val W = VectorClock(vec);
         W.set(self, lsn);
         lsn = lsn + 1;
+        //extract the payload from the CRB_Broadcast message, and send it to the RB_Broadcast
+        //it is fundamental to do not send data from a higher layer to a lower layer
         trigger(RB_Broadcast(DataMessage(W, x.payload))-> rb);
 
 
