@@ -68,6 +68,7 @@ class BasicBroadcast(init: Init[BasicBroadcast]) extends ComponentDefinition {
   beb uponEvent {
     case x: BEB_Broadcast => {
         /* WRITE YOUR CODE HERE */
+        //trigger the PL_Send event to all the nodes in the topology
         for (p <- topology) {
           trigger(PL_Send(p, x), pLink);
         }
@@ -77,6 +78,7 @@ class BasicBroadcast(init: Init[BasicBroadcast]) extends ComponentDefinition {
   pLink uponEvent {
     case PL_Deliver(src, BEB_Broadcast(payload)) => {
         /* WRITE YOUR CODE HERE */
+        //trigger the BEB_Deliver event to the upper layer
         trigger(BEB_Deliver(src, payload), beb);
     }
   }
@@ -126,6 +128,7 @@ class EagerReliableBroadcast(init: Init[EagerReliableBroadcast]) extends Compone
   rb uponEvent {
     case x @ RB_Broadcast(_) => {
         /* WRITE YOUR CODE HERE */
+        //triger the BEB_Broadcast for sending the message to all the nodes
         trigger(BEB_Broadcast( x), beb);
     }
   }
@@ -133,9 +136,13 @@ class EagerReliableBroadcast(init: Init[EagerReliableBroadcast]) extends Compone
   beb uponEvent {
     case BEB_Deliver(src, y @ RB_Broadcast(payload)) => {
         /* WRITE YOUR CODE HERE */
+        //check if we have deliver the message before
         if (!delivered.contains(payload)) {
+          //add the message to the delivered set
           delivered.add(payload);
+          //trigger the RB_Deliver event to the upper layer
           trigger(RB_Deliver(src, payload), rb);
+          //trigger the BEB_Broadcast for sending the message to all the nodes
           trigger(BEB_Broadcast(payload), beb);
         }
     }
