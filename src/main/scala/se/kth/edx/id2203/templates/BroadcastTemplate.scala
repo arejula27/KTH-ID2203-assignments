@@ -118,6 +118,7 @@ class EagerReliableBroadcast(init: Init[EagerReliableBroadcast]) extends Compone
   //EagerReliableBroadcast Component State and Initialization
   val self = init match {
     case Init(s: Address) => s;
+    //delivered.clear(); // clear the delivered set
   };
   val delivered = mutable.Set[KompicsEvent]();
 
@@ -125,12 +126,18 @@ class EagerReliableBroadcast(init: Init[EagerReliableBroadcast]) extends Compone
   rb uponEvent {
     case x @ RB_Broadcast(_) => {
         /* WRITE YOUR CODE HERE */
+        trigger(BEB_Broadcast( x), beb);
     }
   }
 
   beb uponEvent {
     case BEB_Deliver(src, y @ RB_Broadcast(payload)) => {
         /* WRITE YOUR CODE HERE */
+        if (!delivered.contains(payload)) {
+          delivered.add(payload);
+          trigger(RB_Deliver(src, payload), rb);
+          trigger(BEB_Broadcast(payload), beb);
+        }
     }
   }
 }
