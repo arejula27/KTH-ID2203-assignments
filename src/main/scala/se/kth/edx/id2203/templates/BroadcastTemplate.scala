@@ -215,12 +215,28 @@ class WaitingCRB(init: Init[WaitingCRB]) extends ComponentDefinition {
   crb uponEvent {
     case x: CRB_Broadcast => {
         /* WRITE YOUR CODE HERE */
+        val W = VectorClock(vec);
+        W.set(self, lsn);
+        lsn = lsn + 1;
+        trigger(RB_Broadcast(DataMessage(W, x))-> rb);
+
+
     }
   }
 
   rb uponEvent {
     case x @ RB_Deliver(src: Address, msg: DataMessage) => {
         /* WRITE YOUR CODE HERE */
+      pending +=((src, msg));
+      //order pending by msg.timestamp
+      val sortedPending = pending.sortWith(_._2.timestamp <= _._2.timestamp)
+       for (item0 @ (src, DataMessage(w, CRB_Broadcast(payload))) <- sortedPending) {
+          if (w <= vec) {
+            pending -= item0;
+            vec.inc(src);
+            trigger(CRB_Deliver(src, payload)-> crb);
+          }
+       }   
     }
   }
 }
@@ -228,7 +244,7 @@ class WaitingCRB(init: Init[WaitingCRB]) extends ComponentDefinition {
 object BroadcastCheck extends App  {
     // NOTE: this exercise has 3 parts, during development feel free to comment out individual checks.
     // For submission, all checks need to pass.
-    checkBEB[BasicBroadcast]();
-    checkRB[BasicBroadcast,EagerReliableBroadcast]();
+    //checkBEB[BasicBroadcast]();
+    //checkRB[BasicBroadcast,EagerReliableBroadcast]();
     checkCRB[BasicBroadcast, EagerReliableBroadcast, WaitingCRB]();
 }
