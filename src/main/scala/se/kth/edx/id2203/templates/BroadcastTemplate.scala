@@ -218,7 +218,7 @@ class WaitingCRB(init: Init[WaitingCRB]) extends ComponentDefinition {
         val W = VectorClock(vec);
         W.set(self, lsn);
         lsn = lsn + 1;
-        trigger(RB_Broadcast(DataMessage(W, x))-> rb);
+        trigger(RB_Broadcast(DataMessage(W, x.payload))-> rb);
 
 
     }
@@ -228,9 +228,10 @@ class WaitingCRB(init: Init[WaitingCRB]) extends ComponentDefinition {
     case x @ RB_Deliver(src: Address, msg: DataMessage) => {
         /* WRITE YOUR CODE HERE */
       pending +=((src, msg));
-      //order pending by msg.timestamp
+      //order pending by msg.timestamp, it allows us to deliver the message in the correct order
       val sortedPending = pending.sortWith(_._2.timestamp <= _._2.timestamp)
-       for (item0 @ (src, DataMessage(w, CRB_Broadcast(payload))) <- sortedPending) {
+      //iterate over the pending messages
+       for (item0 @ (src, DataMessage(w, payload)) <- sortedPending) {
           if (w <= vec) {
             pending -= item0;
             vec.inc(src);
