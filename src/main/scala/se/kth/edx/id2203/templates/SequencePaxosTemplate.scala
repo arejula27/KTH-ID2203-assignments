@@ -95,47 +95,144 @@ class SequencePaxos(init: Init[SequencePaxos]) extends ComponentDefinition {
   ble uponEvent {
     case BLE_Leader(l, n) => {
         /* INSERT YOUR CODE HERE */
+        if (n > nL) {
+          leader = Some(l);
+          nL = n;
+          if (self == l && nL > nProm) {
+            state = (LEADER, PREPARE);
+            propCmds = List.empty[RSM_Command];
+            las.clear();
+            las++=pi.map(p => (p, 0)).toMap; 
+            lds.clear();
+            acks.clear();
+            lc = 0;
+            pi foreach { p =>
+              if (p != self) {
+                trigger(PL_Send(p, Prepare(nL, ld, na)) -> pl);
+              }
+            }
+
+        
+            acks += (l -> (na, suffix(va, ld)));
+            lds += (self -> ld);
+            nProm = nL
+          } else {
+            state = (FOLLOWER, state._2);
+          }
+        }
     }
   }
 
   pl uponEvent {
+    //ok
     case PL_Deliver(p, Prepare(np, ldp, n)) => {
         /* INSERT YOUR CODE HERE */
+        if (nProm < np) {
+          nProm = np;
+          state = (FOLLOWER, PREPARE);
+          var sfx = List.empty[RSM_Command];
+          if (na >= n) {
+            sfx = suffix(va, ldp);
+          }
+          trigger(PL_Send(p, Promise(np, na, sfx, ld)) -> pl);
+        }
     }
+    //ok
     case PL_Deliver(a, Promise(n, na, sfxa, lda)) => {
       if ((n == nL) && (state == (LEADER, PREPARE))) {
         /* INSERT YOUR CODE HERE */
+        acks += (a -> (na, sfxa));
+        lds += (a -> lda);
+        if (acks.size == majority) {
+          val (k,sfx) = acks.values.maxBy(p => {(p._1,p._2.size)});
+          va = prefix(va, ld) ++ sfx ++ propCmds;
+          las += (self -> va.size);
+          propCmds = List.empty;
+          state = (LEADER, ACCEPT);
+          pi foreach { p =>
+            if ((lds contains p )&&( p != self)) {
+              val sfx = suffix(va, lds(p));
+              trigger(PL_Send(p, AcceptSync(nL, sfx, lds(p))) -> pl);
+            }
+          }
+        
+        }
       } else if ((n == nL) && (state == (LEADER, ACCEPT))) {
         /* INSERT YOUR CODE HERE */
+        lds += (a -> lda);
+        var sfx = suffix(va, lds(a));
+        trigger(PL_Send(a, AcceptSync(nL, sfx, lds(a))) -> pl);
+        if (lc != 0) {
+          trigger(PL_Send(a, Decide(ld,nL )) -> pl);
+        }
       }
     }
+    //ok
     case PL_Deliver(p, AcceptSync(nL, sfx, ldp)) => {
       if ((nProm == nL) && (state == (FOLLOWER, PREPARE))) {
         /* INSERT YOUR CODE HERE */
+        na = nL;
+        va = prefix(va, ldp) ++ sfx;
+        trigger(PL_Send(p, Accepted(nL, va.size)) -> pl);
+        state = (FOLLOWER, ACCEPT);
+        
       }
     }
+    //ok
     case PL_Deliver(p, Accept(nL, c)) => {
       if ((nProm == nL) && (state == (FOLLOWER, ACCEPT))) {
         /* INSERT YOUR CODE HERE */
+
+        va = va :+ c;
+        trigger(PL_Send(p, Accepted(nL, va.size)) -> pl);
+          
+        
       }
     }
+    //ok
     case PL_Deliver(_, Decide(l, nL)) => {
         /* INSERT YOUR CODE HERE */
+        if (nL == nProm) {
+          while (ld < l) {
+            trigger(SC_Decide(va(ld)) -> sc);
+            ld += 1;
+          }
+        }
     }
+    //ok
     case PL_Deliver(a, Accepted(n, m)) => {
       if ((n == nL) && (state == (LEADER, ACCEPT))) {
         /* INSERT YOUR CODE HERE */
+        las += (a -> m);
+        val count = pi count (p => {las(p) >= m});
+        if ((lc<m)&&(count>= majority)) {
+          lc =m;
+           pi foreach (p => {
+            if((lds contains p)){
+                 trigger(PL_Send(p, Decide(lc, nL)) -> pl);
+            } 
+         });
+          }
+        
       }
     }
   }
-
+  //ok
   sc uponEvent {
     case SC_Propose(c) => {
       if (state == (LEADER, PREPARE)) {
         /* INSERT YOUR CODE HERE */
+        propCmds = propCmds :+ c;
       } 
       else if (state == (LEADER, ACCEPT)) {
         /* INSERT YOUR CODE HERE */
+        va = va :+ c;
+        las += (self -> (las(self) + 1));
+        pi foreach { p =>
+          if ((lds contains p) && (p != self)) {
+            trigger(PL_Send(p, Accept(nL, c)) -> pl);
+          }
+        }
       }
     }
   }
