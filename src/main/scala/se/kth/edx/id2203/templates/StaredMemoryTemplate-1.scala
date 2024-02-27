@@ -113,34 +113,87 @@ class ReadImposeWriteConsultMajority(init: Init[ReadImposeWriteConsultMajority])
   // handlers
 
   nnar uponEvent {
+    //ok
     case AR_Read_Request() => {
       rid = rid + 1;
       /* WRITE YOUR CODE HERE  */
+      acks = 0;
+      readlist = Map.empty;
+      reading = true;
+      trigger(BEB_Broadcast(READ(rid)) -> beb);
     };
+    //ok
     case AR_Write_Request(wval) => {
       rid = rid + 1;
       /* WRITE YOUR CODE HERE  */
+      writeval = Some(wval);
+      acks = 0;
+      readlist = Map.empty;
+      trigger(BEB_Broadcast(READ(rid)) -> beb);
     }
   }
 
+
   beb uponEvent {
+    //ok
     case BEB_Deliver(src, READ(readID)) => {
       /* WRITE YOUR CODE HERE  */
+      trigger(PL_Send(src, VALUE(readID, ts, wr, value)) -> pLink);
+      
     }
+    //ok
     case BEB_Deliver(src, w: WRITE) => {
       /* WRITE YOUR CODE HERE  */
+      //extract the value from the write event
+      val (r, ts2, wr2, v2) = (w.rid, w.ts, w.wr, w.writeVal)
+      if ((ts2, wr2) > (ts, wr)) {
+        ts = ts2;
+        wr = wr2;
+        value = v2;
+      }
+      trigger(PL_Send(src, ACK(r)) -> pLink);
     }
   }
 
   pLink uponEvent {
+
     case PL_Deliver(src, v: VALUE) => {
       if (v.rid == rid) {
         /* WRITE YOUR CODE HERE  */
+       readlist.update(src,(v.ts, v.wr, v.value));
+        if(readlist.size > n/2){
+          val max = readlist.maxBy(_._2._1)._2;
+          var (maxts, rr, _ ) = max;
+          readval = max._3;
+          
+          readlist = Map.empty;
+          var bcastval: Option[Any] = None;
+          if(reading){
+            bcastval = readval;
+          } else {
+            rr = selfRank;
+            maxts = maxts + 1;
+            bcastval = writeval;
+          }
+          trigger(BEB_Broadcast(WRITE(rid, maxts, rr, bcastval)) -> beb);
+        }
       }
     }
+    //ok
     case PL_Deliver(src, v: ACK) => {
       if (v.rid == rid) {
         /* WRITE YOUR CODE HERE  */
+        acks = acks + 1;
+        if (acks > n / 2) {
+          acks = 0;
+          if (reading) {
+            reading = false;
+            trigger(AR_Read_Response(readval) -> nnar);
+          }
+          else{
+            trigger(AR_Write_Response() -> nnar);
+          }
+        }
       }
     }
   }
